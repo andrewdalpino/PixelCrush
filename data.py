@@ -12,7 +12,7 @@ from torchvision.transforms.v2.functional import InterpolationMode
 
 from PIL import Image
 
-from model import UltraZoom
+from model import PixelCrush
 
 
 class ImageFolder(Dataset):
@@ -24,17 +24,12 @@ class ImageFolder(Dataset):
         self,
         root_path: str,
         target_resolution: int,
-        upscale_ratio: int,
+        downscale_ratio: float,
         pre_transformer: Transform | None = None,
     ):
-        if upscale_ratio not in UltraZoom.AVAILABLE_UPSCALE_RATIOS:
+        if downscale_ratio not in PixelCrush.AVAILABLE_DOWNSCALE_RATIOS:
             raise ValueError(
-                f"Upscale ratio must be either 2, 4, or 8, {upscale_ratio} given."
-            )
-
-        if target_resolution % upscale_ratio != 0:
-            raise ValueError(
-                f"Target resolution must divide evenly into upscale_ratio."
+                f"Upscale ratio must be either 2, 4, or 8, {downscale_ratio} given."
             )
 
         image_paths = []
@@ -62,11 +57,11 @@ class ImageFolder(Dataset):
                 f"than the target resolution of {target_resolution}."
             )
 
-        target_transformer = ToDtype(torch.float32, scale=True)
+        post_transformer = ToDtype(torch.float32, scale=True)
 
         self.image_paths = image_paths
         self.pre_transformer = pre_transformer
-        self.target_transformer = target_transformer
+        self.post_transformer = post_transformer
 
     @classmethod
     def has_image_extension(cls, filename: str) -> bool:
@@ -75,15 +70,17 @@ class ImageFolder(Dataset):
         return extension in cls.ALLOWED_EXTENSIONS
 
     def __getitem__(self, index: int):
-        image_path = self.image_paths[index]
+        hr_path, lr_path = self.image_paths[index]
 
-        image = decode_image(image_path, mode=self.IMAGE_MODE)
+        hr_image = decode_image(hr_path, mode=self.IMAGE_MODE)
+        lr_image = decode_image(lr_path, mode=self.IMAGE_MODE)
 
         if self.pre_transformer:
-            image = self.pre_transformer(image)
+            hr_image = self.pre_transformer(hr_image)
+            lr_image = self.pre_transformer(lr_image)
 
-        x = self.degrade_transformer(image)
-        y = self.target_transformer(image)
+        x = self.post_transformer(hr_image)
+        y = self.post_transformer(lr_image)
 
         return x, y
 

@@ -6,7 +6,7 @@ from torchvision.io import decode_image
 from torchvision.transforms.v2 import ToDtype
 from torchvision.utils import make_grid
 
-from model import UltraZoom
+from model import PixelCrush
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -32,7 +32,7 @@ def main():
         args.checkpoint_path, map_location=args.device, weights_only=True
     )
 
-    model = UltraZoom(**checkpoint["model_args"])
+    model = PixelCrush(**checkpoint["model_args"])
 
     model.add_weight_norms()
 
@@ -57,7 +57,7 @@ def main():
 
     x = image_to_tensor(image).unsqueeze(0).to(args.device)
 
-    print("Upscaling ...")
+    print("Downscaling ...")
     y_pred, y_bicubic = model.test_compare(x)
 
     pair = torch.stack(

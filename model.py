@@ -11,6 +11,7 @@ from torch.nn import (
     Sigmoid,
     SiLU,
     Upsample,
+    MaxPool2d
 )
 
 from torch.nn.utils.parametrizations import weight_norm
@@ -27,7 +28,7 @@ class PixelCrush(Module, PyTorchModelHubMixin):
 
     def __init__(
         self,
-        downscale_ratio: int,
+        downscale_ratio: float,
         num_channels: int,
         hidden_ratio: int,
         num_encoder_layers: int,
@@ -43,7 +44,7 @@ class PixelCrush(Module, PyTorchModelHubMixin):
 
         self.encoder = Encoder(num_channels, hidden_ratio, num_encoder_layers)
 
-        self.decoder = SubpixelConv2d(num_channels, upscale_ratio)
+        self.decoder = SuperpixelConv2d(num_channels, downscale_ratio)
 
         self.downscale_ratio = downscale_ratio
 
@@ -88,7 +89,7 @@ class PixelCrush(Module, PyTorchModelHubMixin):
         return z, s
     
     @torch.no_grad()
-    def upscale(self, x: Tensor) -> Tensor:
+    def downscale(self, x: Tensor) -> Tensor:
         z, _ = self.forward(x)
 
         z = torch.clamp(z, 0, 1)
@@ -196,3 +197,22 @@ class InvertedBottleneck(Module):
 
         return z
 
+class SuperpixelConv2d(Module):
+    """A low-resolution decoder with super-pixel convolution."""
+
+    def __init__(self, in_channels: int, downscale_ratio: float):
+        super().__init__()
+
+        assert downscale_ratio in {0.5, 0.25, 0.125}, "Upscale ratio must be either 0.5, 0.25, or 0.125."
+
+        self.conv = Conv2d(in_channels, 3, kernel_size=3, padding=1)
+
+        kernel_size = int(1 / downscale_ratio)
+
+        self.pool = MaxPool2d(kernel_size=kernel_size, stride=kernel_size)
+
+    def forward(self, x: Tensor) -> Tensor:
+        z = self.conv.forward(x)
+        z = self.pool.forward(z)
+
+        return z
